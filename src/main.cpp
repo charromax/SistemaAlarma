@@ -44,7 +44,7 @@ void setup()
   // using mac address as device ID for topic
   MQTTBegin(WiFi.macAddress());
   MQTTSetCallback(mqttCallback);
-  pinMode(sensor, INPUT_PULLUP);
+  pinMode(sensor, INPUT_PULLDOWN_16);
   pinMode(LED_BUILTIN, OUTPUT);
   timer.setInterval(1000L, getSensorValue);
 }
