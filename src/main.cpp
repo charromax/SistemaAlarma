@@ -43,10 +43,11 @@ void setup()
   // using mac address as device ID for topic
   MQTTBegin();
   MQTTSetCallback(mqttCallback);
-  pinMode(sensor, INPUT_PULLDOWN_16);
+  pinMode(sensor, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
   timer.setInterval(1000L, getSensorValue);
+  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 /**
@@ -65,7 +66,7 @@ void setupWifi()
   Serial.println("");
   Serial.print("Connected! IP address: ");
   Serial.println(WiFi.localIP());
-  Serial.print("Device Ready for Operation");
+  Serial.println("Device Ready for Operation");
 }
 
 /**
@@ -76,7 +77,9 @@ void getSensorValue()
 {
   if (isActivated)
   {
+    digitalWrite(LED_BUILTIN, LOW);
     if (digitalRead(sensor) == LOW && !currentState.equals(ALL_OK))
+
     {
       //door is closed ALL GOOD
       currentState = ALL_OK;
@@ -127,11 +130,13 @@ void checkPayload(String payload)
   {
     if (payload.equals(ON))
     {
+      digitalWrite(LED_BUILTIN, LOW);
       isActivated = true;
     }
     else if (payload.equals(OFF))
     {
       isActivated = false;
+      digitalWrite(LED_BUILTIN, HIGH);
     }
   }
 }
