@@ -30,7 +30,7 @@ void checkPayload(String);
 
 int sensor = D0; // magnetic or otherwise triggereable sensor
 bool isActivated = true;
-bool sentDeactivationMessageAlready = false;
+String currentState = ALL_OK;
 SimpleTimer timer;
 
 //########################################################## CODE #############################################################
@@ -41,10 +41,11 @@ void setup()
   Serial.begin(9600);
   setupWifi();
   // using mac address as device ID for topic
-  MQTTBegin(WiFi.macAddress());
+  MQTTBegin();
   MQTTSetCallback(mqttCallback);
   pinMode(sensor, INPUT_PULLDOWN_16);
   pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
   timer.setInterval(1000L, getSensorValue);
 }
 
@@ -75,21 +76,23 @@ void getSensorValue()
 {
   if (isActivated)
   {
-    if (digitalRead(sensor) == LOW)
+    if (digitalRead(sensor) == LOW && !currentState.equals(ALL_OK))
     {
       //door is closed ALL GOOD
+      currentState = ALL_OK;
       MQTTPublish(sensorTopic, ALL_OK);
     }
-    if (digitalRead(sensor) == HIGH)
+    if (digitalRead(sensor) == HIGH && !currentState.equals(ALARM))
     {
       blink();
       //door is open ALARM ALARM
+      currentState = ALARM;
       MQTTPublish(sensorTopic, ALARM);
     }
   } else {
-    if (!sentDeactivationMessageAlready){
+    if (!currentState.equals(DEACTIVATED)){
       MQTTPublish(sensorTopic, DEACTIVATED);
-      sentDeactivationMessageAlready = true;
+      currentState = DEACTIVATED;
     }
     
   }
@@ -125,7 +128,6 @@ void checkPayload(String payload)
     if (payload.equals(ON))
     {
       isActivated = true;
-      sentDeactivationMessageAlready = false;
     }
     else if (payload.equals(OFF))
     {
@@ -139,9 +141,9 @@ void checkPayload(String payload)
  */
 void blink()
 {
-  digitalWrite(LED_BUILTIN, HIGH);
-  delay(300);
   digitalWrite(LED_BUILTIN, LOW);
+  delay(300);
+  digitalWrite(LED_BUILTIN, HIGH);
   delay(300);
 }
 

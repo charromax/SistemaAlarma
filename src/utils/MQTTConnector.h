@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-void    MQTTBegin(String deviceId);
+void    MQTTBegin();
 void    MQTTLoop();
 boolean MQTTPublish(String topic, String payload);
 void    MQTTSetCallback(void (*callback)(char* topic, byte* payload, unsigned int length));

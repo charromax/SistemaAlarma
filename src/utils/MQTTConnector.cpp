@@ -12,7 +12,6 @@ PubSubClient mqtt(wifiClient);
 
 boolean mqttInitCompleted = false;
 String clientId = "sensor" + String(ESP.getChipId());
-String dev_id;
 
 void performConnect()
 {
@@ -64,10 +63,9 @@ boolean MQTTIsConnected()
   return mqtt.connected();
 }
 
-void MQTTBegin(String deviceId)
+void MQTTBegin()
 {
   mqtt.setServer(MQTT_BROKER, MQTT_BROKER_PORT);
-  dev_id = deviceId;
   mqttInitCompleted = true;
 }
 
