@@ -5,7 +5,7 @@
 
 //########################################################## CONSTANTS #############################################################
 
-String sensorTopic = "home/office/door";
+String sensorTopic = "home/office/window";
 String ALL_OK = "ALL_OK";
 String ON = "ON";
 String OFF = "OFF";
@@ -78,14 +78,14 @@ void getSensorValue()
   if (isActivated)
   {
     digitalWrite(LED_BUILTIN, LOW);
-    if (digitalRead(sensor) == LOW && !currentState.equals(ALL_OK))
+    if (digitalRead(sensor) == HIGH && !currentState.equals(ALL_OK))
 
     {
       //door is closed ALL GOOD
       currentState = ALL_OK;
       MQTTPublish(sensorTopic, ALL_OK);
     }
-    if (digitalRead(sensor) == HIGH && !currentState.equals(ALARM))
+    if (digitalRead(sensor) == LOW && !currentState.equals(ALARM))
     {
       blink();
       //door is open ALARM ALARM
@@ -130,7 +130,7 @@ void checkPayload(String payload)
   {
     if (payload.equals(ON))
     {
-      digitalWrite(LED_BUILTIN, LOW);
+      digitalWrite(LED_BUILTIN, LOW); 
       isActivated = true;
     }
     else if (payload.equals(OFF))
