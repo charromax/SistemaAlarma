@@ -8,6 +8,7 @@ String sensorTopic = "home/terrace/pump";
 String ON = "ON";
 String OFF = "OFF";
 String DEACTIVATED = "DEACTIVATED";
+String ACTIVATED = "ACTIVATED";
 String REPORT = "REPORT";
 
 //########################################################## WIFI CREDENTIALS #############################################################
@@ -24,7 +25,7 @@ void checkPayload(String);
 
 //########################################################## GLOBALS #############################################################
 
-int pumpPin = D5; // water pump is connected to D5 pin
+int pumpPin = D8; // water pump is connected to D8 pin
 bool isActivated = true;
 
 //########################################################## CODE #############################################################
@@ -37,7 +38,7 @@ void setup()
   // using mac address as device ID for topic
   MQTTBegin();
   MQTTSetCallback(mqttCallback);
-  pinMode(pumpPin, INPUT);
+  pinMode(pumpPin, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 }
@@ -101,7 +102,11 @@ void checkPayload(String payload)
       digitalWrite(LED_BUILTIN, HIGH);
     }
     else if (payload.equals(REPORT)) {
-      //TODO: mqtt publish report json
+      if (isActivated) {
+        MQTTPublish(sensorTopic, ACTIVATED);
+        } else {
+           MQTTPublish(sensorTopic, DEACTIVATED);
+           }
     }
   }
 }
