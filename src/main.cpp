@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include "./utils/MQTTConnector.h"
+#include <WiFiManager.h>    
 
 //########################################################## CONSTANTS #############################################################
 
@@ -10,11 +11,6 @@ String OFF = "OFF";
 String DEACTIVATED = "DEACTIVATED";
 String ACTIVATED = "ACTIVATED";
 String REPORT = "REPORT";
-
-//########################################################## WIFI CREDENTIALS #############################################################
-
-char ssid[] = "FUMANCHU";
-char pass[] = "heyholetsgo";
 
 //########################################################## FUNCTION DECLARATIONS #############################################################
 
@@ -27,6 +23,7 @@ void checkPayload(String);
 
 int pumpPin = D8; // water pump is connected to D8 pin
 bool isActivated = true;
+WiFiServer server(80);
 
 //########################################################## CODE #############################################################
 
@@ -49,17 +46,21 @@ void setup()
  */
 void setupWifi()
 {
-  WiFi.begin(ssid, pass);
+  WiFiManager wifi;
+  
+  // Uncomment and run it once, if you want to erase all the stored information
+  //wifiManager.resetSettings();
 
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.print("Connected! IP address: ");
-  Serial.println(WiFi.localIP());
-  Serial.println("Device Ready for Operation");
+  // fetches ssid and pass from eeprom and tries to connect
+  // if it does not connect it starts an access point with the specified name
+  // here  "AutoConnectAP"
+  // and goes into a blocking loop awaiting configuration
+  wifi.autoConnect("Hercules");
+  
+  // if you get here you have connected to the WiFi
+  Serial.println("Connected.");
+  
+  server.begin();
 }
 
 /**
