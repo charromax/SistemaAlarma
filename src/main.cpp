@@ -2,21 +2,17 @@
 #include <ESP8266WiFi.h>
 #include <SimpleTimer.h>
 #include "./utils/MQTTConnector.h"
+#include <WiFiManager.h>    
 
 //########################################################## CONSTANTS #############################################################
 
-String sensorTopic = "home/office/window";
+String sensorTopic = "home/office/door";
 String ALL_OK = "ALL_OK";
 String ON = "ON";
 String OFF = "OFF";
 String ALARM = "ALARM";
 String DEACTIVATED = "DEACTIVATED";
 
-
-//########################################################## WIFI CREDENTIALS #############################################################
-
-char ssid[] = "FUMANCHU";
-char pass[] = "heyholetsgo";
 
 //########################################################## FUNCTION DECLARATIONS #############################################################
 
@@ -32,6 +28,7 @@ int sensor = D0; // magnetic or otherwise triggereable sensor
 bool isActivated = true;
 String currentState = ALL_OK;
 SimpleTimer timer;
+WiFiServer server(80);
 
 //########################################################## CODE #############################################################
 
@@ -56,17 +53,21 @@ void setup()
  */
 void setupWifi()
 {
-  WiFi.begin(ssid, pass);
+  WiFiManager wifi;
+  
+  // Uncomment and run it once, if you want to erase all the stored information
+  //wifiManager.resetSettings();
 
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.print("Connected! IP address: ");
-  Serial.println(WiFi.localIP());
-  Serial.println("Device Ready for Operation");
+  // fetches ssid and pass from eeprom and tries to connect
+  // if it does not connect it starts an access point with the specified name
+  // here  "AutoConnectAP"
+  // and goes into a blocking loop awaiting configuration
+  wifi.autoConnect("Hercules");
+  
+  // if you get here you have connected to the WiFi
+  Serial.println("Connected.");
+  
+  server.begin();
 }
 
 /**
