@@ -56,13 +56,14 @@ void setup()
 
 void tryOpenConfigFile()
 {
-  // clean FS, for testing
-  // LittleFS.format();
+
   // read configuration from FS json
   Serial.println("mounting FS...");
 
   if (LittleFS.begin())
   {
+    // clean FS, for testing
+    // LittleFS.format();
     Serial.println("mounted file system");
     if (LittleFS.exists(CONFIG_FILE))
     {
@@ -96,30 +97,36 @@ void tryOpenConfigFile()
 
 void saveNewConfig(const char *newTopic)
 {
-  Serial.println("Attempting to save new topic config");
-  Serial.println(newTopic);
-  if (shouldSaveConfig)
+  if (LittleFS.begin())
   {
-    LittleFS.remove(CONFIG_FILE);
-    // Open file for writing
-    File file = LittleFS.open(CONFIG_FILE, "w");
-    if (!file)
+    Serial.println("Attempting to save new topic config");
+    Serial.println(newTopic);
+    if (shouldSaveConfig)
     {
-      Serial.println(F("Failed to create file"));
-      return;
-    }
-    StaticJsonDocument<256> doc;
+      LittleFS.remove(CONFIG_FILE);
+      // Open file for writing
+      File file = LittleFS.open(CONFIG_FILE, "w");
+      if (!file)
+      {
+        Serial.println(F("Failed to create file"));
+        return;
+      }
+      StaticJsonDocument<256> doc;
 
-    // Set the values in the document
-    doc["topic"] = newTopic;
+      // Set the values in the document
+      doc["topic"] = newTopic;
 
-    // Serialize JSON to file
-    if (serializeJson(doc, file) == 0)
-    {
-      Serial.println(F("Failed to write to file"));
+      // Serialize JSON to file
+      if (serializeJson(doc, file) == 0)
+      {
+        Serial.println(F("Failed to write to file"));
+      }
+      // Close the file
+      file.close();
     }
-    // Close the file
-    file.close();
+    LittleFS.end();
+  } else {
+    Serial.println(F("Unable to begin filesystem manager"));
   }
 }
 
@@ -130,13 +137,12 @@ void saveNewConfig(const char *newTopic)
 void setupWifi()
 {
   tryOpenConfigFile();
-  WiFiManagerParameter customTopic("Topic", "Topic", sensorTopic, 100);
+  WiFiManagerParameter customTopic("topic", "Topic:", sensorTopic, 100);
   WiFiManager wifi;
+  wifi.resetSettings();
   wifi.addParameter(&customTopic);
   wifi.setSaveConfigCallback(saveConfigCallback);
   wifi.setMinimumSignalQuality(15);
-  // Uncomment and run it once, if you want to erase all the stored information
-  // wifiManager.resetSettings();
 
   // fetches ssid and pass from eeprom and tries to connect
   // if it does not connect it starts an access point with the specified name
