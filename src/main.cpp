@@ -6,10 +6,10 @@
 #include <ArduinoJson.h>
 #include "LittleFS.h"
 
-//########################################################## CONSTANTS #############################################################
+//########################################################## CONSTANTS ###########################################
 
-char sensorTopic[100];
 char AP_SSID[] = "HerculesTotemAP";
+const char null[5] = "null";
 char CONFIG_FILE[] = "/config.json";
 String ALL_OK = "ALL_OK";
 String ON = "ON";
@@ -17,7 +17,7 @@ String OFF = "OFF";
 String ALARM = "ALARM";
 String DEACTIVATED = "DEACTIVATED";
 
-//########################################################## FUNCTION DECLARATIONS #############################################################
+//########################################################## FUNCTION DECLARATIONS ##############################
 
 void setupWifi();
 void mqttCallback(char *, byte *, unsigned int);
@@ -29,30 +29,23 @@ void turnOffBuiltInLED();
 void saveConfigCallback();
 void tryOpenConfigFile();
 void saveNewConfig(const char *);
+void checkResetButton();
+void IRAM_ATTR resetCallback();
+void clearFilesystem();
 
-//########################################################## GLOBALS #############################################################
+//########################################################## GLOBALS ###############################################
 
+char sensorTopic[100];
 int sensor = D0; // magnetic or otherwise triggereable sensor
+int resetButton = D1;
 bool isActivated = true;
 String currentState = ALL_OK;
 SimpleTimer timer;
 bool shouldSaveConfig = false; // flag for saving data
+WiFiManager wifi;
+bool shouldResetEsp = false;
 
-//########################################################## CODE #############################################################
-
-void setup()
-{
-  // put your setup code here, to run once:
-  Serial.begin(9600);
-  setupWifi();
-  // using mac address as device ID for topic
-  MQTTBegin();
-  MQTTSetCallback(mqttCallback);
-  pinMode(sensor, INPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
-  timer.setInterval(1000L, getSensorValue);
-  turnOffBuiltInLED();
-}
+//########################################################## CODE ###################################################
 
 void tryOpenConfigFile()
 {
@@ -125,8 +118,25 @@ void saveNewConfig(const char *newTopic)
       file.close();
     }
     LittleFS.end();
-  } else {
-    Serial.println(F("Unable to begin filesystem manager"));
+  }
+  else
+  {
+  }
+}
+
+void clearFilesystem()
+{
+  if (LittleFS.begin())
+  {
+    if (LittleFS.format())
+    {
+      Serial.println(F("Device memory wiped!"));
+    }
+    LittleFS.end();
+  }
+  else
+  {
+    Serial.println(F("Unable to format device"));
   }
 }
 
@@ -138,8 +148,6 @@ void setupWifi()
 {
   tryOpenConfigFile();
   WiFiManagerParameter customTopic("topic", "Topic:", sensorTopic, 100);
-  WiFiManager wifi;
-  wifi.resetSettings();
   wifi.addParameter(&customTopic);
   wifi.setSaveConfigCallback(saveConfigCallback);
   wifi.setMinimumSignalQuality(15);
@@ -153,8 +161,10 @@ void setupWifi()
   // if you get here you have connected to the WiFi
   Serial.println("Connected.");
   turnOffBuiltInLED();
-  if (customTopic.getValue() != NULL && customTopic.getValueLength() > 5)
+  if (customTopic.getValue() != sensorTopic)
   {
+    Serial.println("topic value");
+    Serial.println(customTopic.getValue());
     strcpy(sensorTopic, customTopic.getValue());
     saveNewConfig(customTopic.getValue());
   }
@@ -270,10 +280,48 @@ void turnOffBuiltInLED()
   digitalWrite(LED_BUILTIN, HIGH);
 }
 
+void checkResetButton()
+{
+  delay(3000); //delay applied for deboucing and to force long press for reset
+  bool isStillPressed = !digitalRead(resetButton);
+  if (shouldResetEsp && isStillPressed)
+  {
+    blink();
+    Serial.println("Terminating processes and resetting...");
+    wifi.resetSettings();
+    clearFilesystem();
+    delay(500);
+    setupWifi();
+  }
+}
+
+void IRAM_ATTR resetCallback()
+{
+  Serial.println("Reset activated!");
+  shouldResetEsp = true;
+}
+
+void setup()
+{
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  setupWifi();
+  // using mac address as device ID for topic
+  MQTTBegin();
+  MQTTSetCallback(mqttCallback);
+  pinMode(sensor, INPUT);
+  pinMode(resetButton, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(resetButton), resetCallback, FALLING);
+  pinMode(LED_BUILTIN, OUTPUT);
+  timer.setInterval(1000L, getSensorValue);
+  turnOffBuiltInLED();
+}
+
 void loop()
 {
   // put your main code here, to run repeatedly:
   timer.run();
+  checkResetButton();
   MQTTLoop();
   MQTTSubscribe(sensorTopic);
 }
