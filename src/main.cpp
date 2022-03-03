@@ -213,23 +213,28 @@ void checkPayload(String payload)
       digitalWrite(LED_BUILTIN, LOW);
       digitalWrite(pumpPin, HIGH);
       isActivated = true;
+       MQTTPublish(sensorTopic, ACTIVATED);
     }
     else if (payload.equals(OFF))
     {
       isActivated = false;
       digitalWrite(pumpPin, LOW);
       digitalWrite(LED_BUILTIN, HIGH);
+      MQTTPublish(sensorTopic, DEACTIVATED);
     }
-    else if (payload.equals(REPORT)) {
-      if (isActivated) {
+    else if (payload.equals(REPORT))
+    {
+      if (isActivated)
+      {
         MQTTPublish(sensorTopic, ACTIVATED);
-        } else {
-           MQTTPublish(sensorTopic, DEACTIVATED);
-           }
+      }
+      else
+      {
+        MQTTPublish(sensorTopic, DEACTIVATED);
+      }
     }
   }
 }
-
 
 /**
  * @brief makes built in led blink TEST PURPOSES
