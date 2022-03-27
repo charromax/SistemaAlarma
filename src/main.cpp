@@ -207,6 +207,7 @@ void getSensorValue()
       currentState = DEACTIVATED;
     }
   }
+  ESP.deepSleep(1e6);
 }
 
 /**

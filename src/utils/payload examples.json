@@ -1,0 +1,44 @@
+// Base totem response
+{
+    "type": "MAG_SENSOR",
+    "status": "ACTIVATED",
+    "state": "ON",
+    "payload": {
+        "data": true
+    }
+}
+
+// water pump totem payload
+{
+    "is_working": true,
+    "cycle": "manual"
+}
+
+// mag sensor totem payload
+{
+    "data": true
+}
+
+// ambient sensor totem payload
+
+{
+    "data": {
+        "temp": 26,
+        "hum": 68
+    }
+}
+================================================================================================================
+
+// base order payload {
+    {
+        "order": "ON" | "OFF" | "REPORT"
+    }
+}
+
+================================================================================================================
+
+//ready to send
+
+{"type": "MAG_SENSOR","is_active": true ,"is_power_on": true ,"payload": "{*data*: true}"}
+
+{"type": "WATER_PUMP","is_active": true ,"is_power_on": true,"payload": "{*is_working*: true,*cycle*: *manual*}"}
