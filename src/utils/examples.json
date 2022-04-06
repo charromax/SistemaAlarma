@@ -1,0 +1,21 @@
+//BASE RESPONSE 
+
+type: {"WATER_PUMP", "MAG_SENSOR", "AMBIENT_SENSOR"}
+cycle: {"MANUAL", "INTERVAL", "SCHEDULE"}
+
+WATER PUMP PAYLOAD
+"{*is_working*:true,*cycle*:*MANUAL*}"
+
+MAG SENSOR PAYLOAD
+"{*data*:true}"
+
+AMBIENT SENSOR PAYLOAD
+"{*temp*:19.3,*hum:56.0*}"
+
+{
+    "type": "WATER_PUMP"
+    "is_active": true,
+    "is_power_on": true,
+    "payload":"{*is_working*:true,*cycle*:*MANUAL*}"
+
+}
