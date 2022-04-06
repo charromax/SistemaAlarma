@@ -4,6 +4,8 @@
 #include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include "LittleFS.h"
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 //########################################################## CONSTANTS ###########################################
 
@@ -16,6 +18,8 @@ String OFF = "OFF";
 String DEACTIVATED = "DEACTIVATED";
 String ACTIVATED = "ACTIVATED";
 String REPORT = "REPORT";
+String INTERVAL = "INTERVAL";
+const long utcOffset = -10800;
 
 //########################################################## FUNCTION DECLARATIONS #############################################################
 
@@ -31,6 +35,9 @@ void saveNewConfig(const char *);
 void checkResetButton();
 void IRAM_ATTR resetCallback();
 void clearFilesystem();
+void handleOnRequest();
+void handleOffRequest();
+void sendReport();
 
 //########################################################## GLOBALS ###############################################
 
@@ -41,6 +48,10 @@ bool isActivated = true;
 bool shouldSaveConfig = false; // flag for saving data
 WiFiManager wifi;
 bool shouldResetEsp = false;
+bool newPayloadReceived = false;
+String newPayload = "";
+WiFiUDP clockServer;
+NTPClient clockClient(clockServer, "south-america.pool.ntp.org", utcOffset);
 
 //########################################################## CODE ###################################################
 
@@ -185,7 +196,8 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     char payloadStr[length + 1];
     memset(payloadStr, 0, length + 1);
     strncpy(payloadStr, (char *)payload, length);
-    checkPayload(payloadStr);
+    newPayload = payloadStr;
+    newPayloadReceived = true;
   }
 }
 
@@ -204,35 +216,70 @@ void saveConfigCallback()
  *
  * @param payload
  */
-void checkPayload(String payload)
+void checkPayload()
 {
-  if (payload != nullptr && payload != "")
+  if (newPayload != "" && newPayloadReceived)
   {
-    if (payload.equals(ON))
+    if (newPayload.equals(ON))
     {
-      digitalWrite(LED_BUILTIN, LOW);
-      digitalWrite(pumpPin, HIGH);
-      isActivated = true;
-       MQTTPublish(sensorTopic, ACTIVATED);
+      handleOnRequest();
     }
-    else if (payload.equals(OFF))
+    else if (newPayload.equals(OFF))
     {
-      isActivated = false;
-      digitalWrite(pumpPin, LOW);
-      digitalWrite(LED_BUILTIN, HIGH);
-      MQTTPublish(sensorTopic, DEACTIVATED);
+      handleOffRequest();
     }
-    else if (payload.equals(REPORT))
+    else if (newPayload.equals(INTERVAL)) {
+      handleIntervalRequest();
+    }
+    else if (newPayload.equals(REPORT))
     {
-      if (isActivated)
-      {
-        MQTTPublish(sensorTopic, ACTIVATED);
-      }
-      else
-      {
-        MQTTPublish(sensorTopic, DEACTIVATED);
-      }
+      sendReport();
     }
+    newPayloadReceived = false;
+    newPayload = "";
+  }
+}
+
+void handleIntervalRequest()
+{
+  runIntervalMode();
+  isActivated = true;
+  MQTTPublish(sensorTopic, ACTIVATED);
+}
+
+void handleOnRequest()
+{
+  digitalWrite(LED_BUILTIN, LOW);
+  digitalWrite(pumpPin, HIGH);
+  isActivated = true;
+  MQTTPublish(sensorTopic, ACTIVATED);
+}
+
+/**
+ * @brief received OFF request from mqtt broker
+ *
+ */
+void handleOffRequest()
+{
+  isActivated = false;
+  digitalWrite(pumpPin, LOW);
+  digitalWrite(LED_BUILTIN, HIGH);
+  MQTTPublish(sensorTopic, DEACTIVATED);
+}
+
+/**
+ * @brief received REPORT request from mqtt broker
+ *
+ */
+void sendReport()
+{
+  if (isActivated)
+  {
+    MQTTPublish(sensorTopic, ACTIVATED);
+  }
+  else
+  {
+    MQTTPublish(sensorTopic, DEACTIVATED);
   }
 }
 
@@ -259,7 +306,7 @@ void turnOffBuiltInLED()
 
 void checkResetButton()
 {
-  delay(3000); //delay applied for deboucing and to force long press for reset
+  delay(3000); // delay applied for deboucing and to force long press for reset
   bool isStillPressed = !digitalRead(resetButton);
   if (shouldResetEsp && isStillPressed)
   {
@@ -296,7 +343,9 @@ void setup()
 void loop()
 {
   // put your main code here, to run repeatedly:
+  clockClient.update();
   checkResetButton();
+  checkPayload();
   MQTTLoop();
   MQTTSubscribe(sensorTopic);
 }
