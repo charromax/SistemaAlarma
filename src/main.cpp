@@ -295,6 +295,11 @@ String buildResponse()
   return output;
 }
 
+/**
+ * @brief build specific payload 
+ * 
+ * @return String 
+ */
 String buildPayload()
 {
   StaticJsonDocument<64> doc;
