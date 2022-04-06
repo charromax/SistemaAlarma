@@ -32,6 +32,8 @@ void saveNewConfig(const char *);
 void checkResetButton();
 void IRAM_ATTR resetCallback();
 void clearFilesystem();
+String buildResponse();
+String buildPayload();
 
 //########################################################## GLOBALS ###############################################
 
@@ -238,6 +240,31 @@ void saveConfigCallback()
   shouldSaveConfig = true;
 }
 
+String buildResponse()
+{
+  StaticJsonDocument<128> doc;
+  String output;
+  doc["type"] = "MAG_SENSOR";
+  doc["is_active"] = true;
+  doc["is_power_on"] = true;
+  doc["payload"] = buildPayload();
+  serializeJson(doc, output);
+  Serial.println("RESPONSE: " + output);
+  return output;
+}
+
+String buildPayload()
+{
+  StaticJsonDocument<16> doc;
+  String payload;
+  bool data;
+  if(currentState == ALARM) data = true; else data = false;
+  doc["data"] = data;
+  serializeJson(doc, payload);
+  Serial.println("PAYLOAD: " + payload);
+  return payload;
+}
+
 /**
  * @brief decode MQTT payload and de/activate sensor accordingly
  *
@@ -283,7 +310,7 @@ void turnOffBuiltInLED()
 
 void checkResetButton()
 {
-  delay(3000); //delay applied for deboucing and to force long press for reset
+  delay(3000); // delay applied for deboucing and to force long press for reset
   bool isStillPressed = !digitalRead(resetButton);
   if (shouldResetEsp && isStillPressed)
   {
