@@ -19,3 +19,6 @@ AMBIENT SENSOR PAYLOAD
     "payload":"{*is_working*:true,*cycle*:*MANUAL*}"
 
 }
+
+
+{"is_working":true,"cycle":"MANUAL"}

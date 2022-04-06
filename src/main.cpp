@@ -12,13 +12,15 @@
 char AP_SSID[] = "HerculesTotemAP";
 const char null[5] = "null";
 char CONFIG_FILE[] = "/config.json";
-String ALL_OK = "ALL_OK";
-String ON = "ON";
-String OFF = "OFF";
-String DEACTIVATED = "DEACTIVATED";
-String ACTIVATED = "ACTIVATED";
-String REPORT = "REPORT";
-String INTERVAL = "INTERVAL";
+const String ALL_OK = "ALL_OK";
+const String ON = "ON";
+const String OFF = "OFF";
+const String DEACTIVATED = "DEACTIVATED";
+const String ACTIVATED = "ACTIVATED";
+const String REPORT = "REPORT";
+const String INTERVAL = "INTERVAL";
+const String INTERVAL = "INTERVAL";
+const String TOTEM_TYPE = "WATER_PUMP";
 const long utcOffset = -10800;
 
 //########################################################## FUNCTION DECLARATIONS #############################################################
@@ -38,6 +40,9 @@ void clearFilesystem();
 void handleOnRequest();
 void handleOffRequest();
 void sendReport();
+void runIntervalMode();
+String buildResponse();
+String buildPayload();
 
 //########################################################## GLOBALS ###############################################
 
@@ -228,7 +233,8 @@ void checkPayload()
     {
       handleOffRequest();
     }
-    else if (newPayload.equals(INTERVAL)) {
+    else if (newPayload.equals(INTERVAL))
+    {
       handleIntervalRequest();
     }
     else if (newPayload.equals(REPORT))
@@ -244,7 +250,7 @@ void handleIntervalRequest()
 {
   runIntervalMode();
   isActivated = true;
-  MQTTPublish(sensorTopic, ACTIVATED);
+  MQTTPublish(sensorTopic, buildResponse()); 
 }
 
 void handleOnRequest()
@@ -252,7 +258,7 @@ void handleOnRequest()
   digitalWrite(LED_BUILTIN, LOW);
   digitalWrite(pumpPin, HIGH);
   isActivated = true;
-  MQTTPublish(sensorTopic, ACTIVATED);
+  MQTTPublish(sensorTopic, buildResponse());
 }
 
 /**
@@ -264,7 +270,7 @@ void handleOffRequest()
   isActivated = false;
   digitalWrite(pumpPin, LOW);
   digitalWrite(LED_BUILTIN, HIGH);
-  MQTTPublish(sensorTopic, DEACTIVATED);
+  MQTTPublish(sensorTopic, buildResponse());
 }
 
 /**
@@ -273,14 +279,40 @@ void handleOffRequest()
  */
 void sendReport()
 {
-  if (isActivated)
-  {
-    MQTTPublish(sensorTopic, ACTIVATED);
-  }
-  else
-  {
-    MQTTPublish(sensorTopic, DEACTIVATED);
-  }
+  MQTTPublish(sensorTopic, buildResponse());
+}
+
+String buildResponse()
+{
+  StaticJsonDocument<128> doc;
+  String output;
+  doc["type"] = TOTEM_TYPE;
+  doc["is_active"] = isActivated;
+  doc["is_power_on"] = isActivated;
+  doc["payload"] = buildPayload();
+  serializeJson(doc, output);
+  Serial.println("RESPONSE: " + output);
+  return output;
+}
+
+String buildPayload()
+{
+  StaticJsonDocument<64> doc;
+  String payload;
+  doc["is_working"] = true;
+  doc["cycle"] = "MANUAL";
+  serializeJson(doc, payload);
+  payload.replace('"', '*');
+  Serial.println("PAYLOAD: " + payload);
+  return payload;
+}
+
+/**
+ * @brief run for specified amount of time then cut off for andther specified time
+ *
+ */
+void runIntervalMode()
+{
 }
 
 /**
