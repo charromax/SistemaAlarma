@@ -13,7 +13,7 @@ PubSubClient mqtt(wifiClient);
 boolean mqttInitCompleted = false;
 String clientId = "sensor" + String(ESP.getChipId());
 
-void performConnect()
+void performConnect(String topic)
 {
   uint16_t connectionDelay = 5000;
   while (!mqtt.connected())
@@ -24,7 +24,7 @@ void performConnect()
       Serial.printf("Trace   : Connected to Broker.\n");
 
       /* Subscription to your topic after connection was succeeded.*/
-      MQTTSubscribe("home/office/door");
+      MQTTSubscribe(topic);
     }
     else
     {
@@ -73,13 +73,13 @@ void MQTTSetCallback(void (*callback)(char* topic, byte* payload, unsigned int l
   mqtt.setCallback(*callback);
 }
 
-void MQTTLoop()
+void MQTTLoop(String topic)
 {
   if(mqttInitCompleted)
   {
     if (!MQTTIsConnected())
     {
-      performConnect();
+      performConnect(topic);
     }
     mqtt.loop();
   }

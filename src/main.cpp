@@ -18,9 +18,7 @@ const String OFF = "OFF";
 const String DEACTIVATED = "DEACTIVATED";
 const String ACTIVATED = "ACTIVATED";
 const String REPORT = "REPORT";
-const String INTERVAL = "INTERVAL";
-const String INTERVAL = "INTERVAL";
-const String TOTEM_TYPE = "WATER_PUMP";
+const String TOTEM_TYPE = "LED_CONTROL";
 const long utcOffset = -10800;
 
 //########################################################## FUNCTION DECLARATIONS #############################################################
@@ -43,17 +41,39 @@ void sendReport();
 void runIntervalMode();
 String buildResponse();
 String buildPayload();
+void setupLedStripControl();
+void changeColor();
+
 
 //########################################################## GLOBALS ###############################################
 
+// Setting PWM frequency, channels and bit resolution
+const int freq = 5000;
+const int redChannel = 0;
+const int greenChannel = 1;
+const int blueChannel = 2;
+// Bit resolution 2^8 = 256
+const int resolution = 8;
+
+// Current time
+unsigned long currentTime = millis();
+// Previous time
+unsigned long previousTime = 0;
+
 char sensorTopic[100];
-int pumpPin = D8; // magnetic or otherwise triggereable sensor
-int resetButton = D1;
+int redColorPin = D0;
+int greenColorPin = D1;
+int blueColorPin = D2;
+int red = 0;   // 0-256
+int green = 0; // 0-256
+int blue = 0;  // 0-256
+int resetButton = D8;
 bool isActivated = true;
 bool shouldSaveConfig = false; // flag for saving data
 WiFiManager wifi;
 bool shouldResetEsp = false;
 bool newPayloadReceived = false;
+bool shouldChangeColor = false;
 String newPayload = "";
 WiFiUDP clockServer;
 NTPClient clockClient(clockServer, "south-america.pool.ntp.org", utcOffset);
@@ -198,6 +218,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
   if (length > 0)
   {
+    Serial.println("MQTT payload arrived" );
     char payloadStr[length + 1];
     memset(payloadStr, 0, length + 1);
     strncpy(payloadStr, (char *)payload, length);
@@ -225,52 +246,21 @@ void checkPayload()
 {
   if (newPayload != "" && newPayloadReceived)
   {
-    if (newPayload.equals(ON))
+    Serial.println("MQTT payload decoded");
+    StaticJsonDocument<96> doc;
+    DeserializationError error = deserializeJson(doc, newPayload);
+    if (error)
     {
-      handleOnRequest();
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.f_str());
+      return;
     }
-    else if (newPayload.equals(OFF))
-    {
-      handleOffRequest();
-    }
-    else if (newPayload.equals(INTERVAL))
-    {
-      handleIntervalRequest();
-    }
-    else if (newPayload.equals(REPORT))
-    {
-      sendReport();
-    }
-    newPayloadReceived = false;
+    red = doc["red"];
+    green = doc["green"]; // RGB values
+    blue = doc["blue"];
+    shouldChangeColor = true;
     newPayload = "";
   }
-}
-
-void handleIntervalRequest()
-{
-  runIntervalMode();
-  isActivated = true;
-  MQTTPublish(sensorTopic, buildResponse()); 
-}
-
-void handleOnRequest()
-{
-  digitalWrite(LED_BUILTIN, LOW);
-  digitalWrite(pumpPin, HIGH);
-  isActivated = true;
-  MQTTPublish(sensorTopic, buildResponse());
-}
-
-/**
- * @brief received OFF request from mqtt broker
- *
- */
-void handleOffRequest()
-{
-  isActivated = false;
-  digitalWrite(pumpPin, LOW);
-  digitalWrite(LED_BUILTIN, HIGH);
-  MQTTPublish(sensorTopic, buildResponse());
 }
 
 /**
@@ -296,9 +286,9 @@ String buildResponse()
 }
 
 /**
- * @brief build specific payload 
- * 
- * @return String 
+ * @brief build specific payload
+ *
+ * @return String
  */
 String buildPayload()
 {
@@ -312,12 +302,23 @@ String buildPayload()
   return payload;
 }
 
-/**
- * @brief run for specified amount of time then cut off for andther specified time
- *
- */
-void runIntervalMode()
+void setupLedStripControl()
 {
+  // configure LED PWM resolution/range and set pins to LOW
+  analogWriteRange(resolution);
+  changeColor();
+}
+
+void changeColor()
+{
+  if (shouldChangeColor)
+  {
+    shouldChangeColor = false;
+    Serial.println("Changing color...");
+    analogWrite(redColorPin, red);
+    analogWrite(greenColorPin, green);
+    analogWrite(blueColorPin, blue);
+  }
 }
 
 /**
@@ -367,12 +368,10 @@ void setup()
   // put your setup code here, to run once:
   Serial.begin(9600);
   setupWifi();
-  // using mac address as device ID for topic
   MQTTBegin();
   MQTTSetCallback(mqttCallback);
-  pinMode(pumpPin, OUTPUT);
-  pinMode(resetButton, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(resetButton), resetCallback, FALLING);
+  setupLedStripControl();
   pinMode(LED_BUILTIN, OUTPUT);
   turnOffBuiltInLED();
 }
@@ -383,6 +382,7 @@ void loop()
   clockClient.update();
   checkResetButton();
   checkPayload();
-  MQTTLoop();
+  changeColor();
+  MQTTLoop(sensorTopic);
   MQTTSubscribe(sensorTopic);
 }

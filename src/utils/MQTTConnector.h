@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 void    MQTTBegin();
-void    MQTTLoop();
+void    MQTTLoop(String topic);
 boolean MQTTPublish(String topic, String payload);
 void    MQTTSetCallback(void (*callback)(char* topic, byte* payload, unsigned int length));
 boolean MQTTSubscribe(String topic);
