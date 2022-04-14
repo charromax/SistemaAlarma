@@ -32,7 +32,7 @@ void saveConfigCallback();
 void tryOpenConfigFile();
 void saveNewConfig(const char *);
 void checkResetButton();
-void IRAM_ATTR resetCallback();
+void IRAM_ATTR resetFlagSetting();
 void clearFilesystem();
 void handleOnRequest();
 void handleOffRequest();
@@ -46,6 +46,7 @@ void fadeColorMode();
 void redFade();
 void greenFade();
 void blueFade();
+void rangeColorMode();
 
 //########################################################## GLOBALS ###############################################
 
@@ -66,10 +67,11 @@ char sensorTopic[100];
 int redColorPin = D0;
 int greenColorPin = D1;
 int blueColorPin = D2;
-int red = 0;     // 0-256
-int green = 0;   // 0-256
-int blue = 0;    // 0-256
-int SPEED = 1;    // 0-256
+int red = 0;   // 0-256
+int green = 0; // 0-256
+int blue = 0;  // 0-256
+int SPEED = 1; // 1 - 10
+String CHANNEL = "G";
 bool rUP = true; // know when to increment or decrement color value1
 bool gUP = true;
 bool bUP = true;
@@ -82,6 +84,7 @@ bool shouldResetEsp = false;
 bool newPayloadReceived = false;
 bool shouldChangeColor = false;
 String newPayload = "";
+int resetHoldingTime = 0;
 WiFiUDP clockServer;
 NTPClient clockClient(clockServer, "south-america.pool.ntp.org", utcOffset);
 
@@ -253,7 +256,7 @@ void checkPayload()
 {
   if (newPayload != "" && newPayloadReceived)
   {
-    StaticJsonDocument<128> doc;
+    StaticJsonDocument<192> doc;
     DeserializationError error = deserializeJson(doc, newPayload);
     if (error)
     {
@@ -261,9 +264,9 @@ void checkPayload()
       Serial.println(error.f_str());
       return;
     }
-    const char* mode = doc["mode"]; // "FADE"
-    MODE = ((String) mode);
-    SPEED = doc["speed"]; // 2
+    MODE = ((String)doc["mode"]);
+    SPEED = doc["speed"];                     // 2
+    CHANNEL = ((String)doc["range_channel"]); // "B"
     red = doc["red"];
     green = doc["green"]; // RGB values
     blue = doc["blue"];
@@ -339,10 +342,36 @@ void fadeColorMode()
 {
   if (MODE == "FADE")
   {
+    Serial.println("fade mode");
     shouldChangeColor = true;
     redFade();
     greenFade();
     blueFade();
+    changeColor();
+  }
+}
+
+void rangeColorMode()
+{
+  if (MODE == "RANGE")
+  {
+    Serial.println("range mode channel = " + CHANNEL);
+    shouldChangeColor = true;
+    if (CHANNEL == "R")
+    {
+      greenFade();
+      blueFade();
+    }
+    if (CHANNEL == "G")
+    {
+      redFade();
+      blueFade();
+    }
+    if (CHANNEL == "B")
+    {
+      redFade();
+      greenFade();
+    }
     changeColor();
   }
 }
@@ -418,8 +447,7 @@ void turnOffBuiltInLED()
 
 void checkResetButton()
 {
-  bool isStillPressed = !digitalRead(resetButton);
-  if (shouldResetEsp && isStillPressed)
+  if (shouldResetEsp)
   {
     blink();
     shouldResetEsp = false;
@@ -431,10 +459,18 @@ void checkResetButton()
   }
 }
 
-void IRAM_ATTR resetCallback()
+void resetFlagSetting()
 {
-  Serial.println("Reset activated!");
-  shouldResetEsp = true;
+  if (digitalRead(resetButton) == HIGH) {
+    resetHoldingTime++;
+    shouldResetEsp = false;
+    if (resetHoldingTime > 100) {
+      resetHoldingTime = 0;
+      shouldResetEsp = true;
+    }
+  } else {
+    resetHoldingTime = 0;
+  }
 }
 
 void setup()
@@ -444,7 +480,7 @@ void setup()
   setupWifi();
   MQTTBegin();
   MQTTSetCallback(mqttCallback);
-  attachInterrupt(digitalPinToInterrupt(resetButton), resetCallback, FALLING);
+  pinMode(resetButton, INPUT);
   setupLedStripControl();
   pinMode(LED_BUILTIN, OUTPUT);
   turnOffBuiltInLED();
@@ -454,10 +490,12 @@ void loop()
 {
   // put your main code here, to run repeatedly:
   // clockClient.update();
+  resetFlagSetting();
   checkResetButton();
   checkPayload();
   changeColor();
   fadeColorMode();
+  rangeColorMode();
   MQTTLoop(sensorTopic);
   MQTTSubscribe(sensorTopic);
 }
