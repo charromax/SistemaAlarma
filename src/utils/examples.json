@@ -20,5 +20,14 @@ AMBIENT SENSOR PAYLOAD
 
 }
 
+LED STRIP CONTROL PAYLOAD
+{
+  "mode": "MANUAL | FADE | FLASH",
+  "speed": 2,
+  "red": 32,
+  "green": 123,
+  "blue": 32
+}
+
 
 {"is_working":true,"cycle":"MANUAL"}

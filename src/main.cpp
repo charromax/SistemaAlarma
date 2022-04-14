@@ -12,7 +12,6 @@
 char AP_SSID[] = "HerculesTotemAP";
 const char null[5] = "null";
 char CONFIG_FILE[] = "/config.json";
-const String ALL_OK = "ALL_OK";
 const String ON = "ON";
 const String OFF = "OFF";
 const String DEACTIVATED = "DEACTIVATED";
@@ -43,7 +42,10 @@ String buildResponse();
 String buildPayload();
 void setupLedStripControl();
 void changeColor();
-
+void fadeColorMode();
+void redFade();
+void greenFade();
+void blueFade();
 
 //########################################################## GLOBALS ###############################################
 
@@ -64,10 +66,15 @@ char sensorTopic[100];
 int redColorPin = D0;
 int greenColorPin = D1;
 int blueColorPin = D2;
-int red = 0;   // 0-256
-int green = 0; // 0-256
-int blue = 0;  // 0-256
+int red = 0;     // 0-256
+int green = 0;   // 0-256
+int blue = 0;    // 0-256
+int SPEED = 1;    // 0-256
+bool rUP = true; // know when to increment or decrement color value1
+bool gUP = true;
+bool bUP = true;
 int resetButton = D8;
+String MODE = "manual";
 bool isActivated = true;
 bool shouldSaveConfig = false; // flag for saving data
 WiFiManager wifi;
@@ -218,7 +225,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
   if (length > 0)
   {
-    Serial.println("MQTT payload arrived" );
+    Serial.println("MQTT payload arrived");
     char payloadStr[length + 1];
     memset(payloadStr, 0, length + 1);
     strncpy(payloadStr, (char *)payload, length);
@@ -246,8 +253,7 @@ void checkPayload()
 {
   if (newPayload != "" && newPayloadReceived)
   {
-    Serial.println("MQTT payload decoded");
-    StaticJsonDocument<96> doc;
+    StaticJsonDocument<128> doc;
     DeserializationError error = deserializeJson(doc, newPayload);
     if (error)
     {
@@ -255,11 +261,15 @@ void checkPayload()
       Serial.println(error.f_str());
       return;
     }
+    const char* mode = doc["mode"]; // "FADE"
+    MODE = ((String) mode);
+    SPEED = doc["speed"]; // 2
     red = doc["red"];
     green = doc["green"]; // RGB values
     blue = doc["blue"];
     shouldChangeColor = true;
     newPayload = "";
+    Serial.println("MQTT payload decoded");
   }
 }
 
@@ -309,6 +319,10 @@ void setupLedStripControl()
   changeColor();
 }
 
+/**
+ * @brief changes color once to selected values
+ *
+ */
 void changeColor()
 {
   if (shouldChangeColor)
@@ -319,6 +333,66 @@ void changeColor()
     analogWrite(greenColorPin, green);
     analogWrite(blueColorPin, blue);
   }
+}
+
+void fadeColorMode()
+{
+  if (MODE == "FADE")
+  {
+    shouldChangeColor = true;
+    redFade();
+    greenFade();
+    blueFade();
+    changeColor();
+  }
+}
+
+void redFade()
+{
+  if (red > 255)
+  {
+    rUP = false;
+  }
+  if (red < 0)
+  {
+    rUP = true;
+  }
+  if (rUP)
+    red = red + SPEED;
+  else
+    red = red - SPEED;
+}
+
+void greenFade()
+{
+  if (green > 255)
+  {
+    gUP = false;
+  }
+  if (green < 0)
+  {
+    gUP = true;
+  }
+  if (gUP)
+    green = green + SPEED;
+  else
+    green = green - SPEED;
+}
+
+void blueFade()
+{
+  if (blue > 255)
+  {
+    bUP = false;
+  }
+  if (blue < 0)
+  {
+    bUP = true;
+  }
+  if (bUP)
+    blue = blue + SPEED;
+  else
+    blue = blue - SPEED;
 }
 
 /**
@@ -344,11 +418,11 @@ void turnOffBuiltInLED()
 
 void checkResetButton()
 {
-  delay(3000); // delay applied for deboucing and to force long press for reset
   bool isStillPressed = !digitalRead(resetButton);
   if (shouldResetEsp && isStillPressed)
   {
     blink();
+    shouldResetEsp = false;
     Serial.println("Terminating processes and resetting...");
     wifi.resetSettings();
     clearFilesystem();
@@ -379,10 +453,11 @@ void setup()
 void loop()
 {
   // put your main code here, to run repeatedly:
-  clockClient.update();
+  // clockClient.update();
   checkResetButton();
   checkPayload();
   changeColor();
+  fadeColorMode();
   MQTTLoop(sensorTopic);
   MQTTSubscribe(sensorTopic);
 }
