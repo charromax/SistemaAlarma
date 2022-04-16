@@ -19,8 +19,9 @@ const String DEACTIVATED = "DEACTIVATED";
 const String ACTIVATED = "ACTIVATED";
 const String REPORT = "REPORT";
 const String INTERVAL = "INTERVAL";
-const String INTERVAL = "INTERVAL";
 const String TOTEM_TYPE = "WATER_PUMP";
+const String MANUAL = "MANUAL";  // operation modes
+const String REMOTE = "REMOTE";  // operation modes
 const long utcOffset = -10800;
 
 //########################################################## FUNCTION DECLARATIONS #############################################################
@@ -34,12 +35,16 @@ void turnOffBuiltInLED();
 void saveConfigCallback();
 void tryOpenConfigFile();
 void saveNewConfig(const char *);
-void checkResetButton();
-void IRAM_ATTR resetCallback();
+void performReset();
+void checkResetButtonPress();
+void checkManualPumpPressed();
 void clearFilesystem();
 void handleOnRequest();
 void handleOffRequest();
+void turnOn();
+void turnOff();
 void sendReport();
+void handleIntervalRequest();
 void runIntervalMode();
 String buildResponse();
 String buildPayload();
@@ -47,8 +52,9 @@ String buildPayload();
 //########################################################## GLOBALS ###############################################
 
 char sensorTopic[100];
-int pumpPin = D8; // magnetic or otherwise triggereable sensor
-int resetButton = D1;
+int pumpPin = D1; // water pump
+int manualPump = D2;
+int resetButton = D7;
 bool isActivated = true;
 bool shouldSaveConfig = false; // flag for saving data
 WiFiManager wifi;
@@ -57,6 +63,9 @@ bool newPayloadReceived = false;
 String newPayload = "";
 WiFiUDP clockServer;
 NTPClient clockClient(clockServer, "south-america.pool.ntp.org", utcOffset);
+int resetHoldingTime = 0;
+bool pumpButtonPressed = false;
+String currentMode= MANUAL;
 
 //########################################################## CODE ###################################################
 
@@ -203,6 +212,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     strncpy(payloadStr, (char *)payload, length);
     newPayload = payloadStr;
     newPayloadReceived = true;
+    currentMode = REMOTE;
   }
 }
 
@@ -225,6 +235,7 @@ void checkPayload()
 {
   if (newPayload != "" && newPayloadReceived)
   {
+    resetHoldingTime = 0;
     if (newPayload.equals(ON))
     {
       handleOnRequest();
@@ -250,15 +261,25 @@ void handleIntervalRequest()
 {
   runIntervalMode();
   isActivated = true;
-  MQTTPublish(sensorTopic, buildResponse()); 
+  MQTTPublish(sensorTopic, buildResponse());
 }
 
 void handleOnRequest()
 {
+  turnOn();
+  MQTTPublish(sensorTopic, buildResponse());
+}
+
+void turnOn() {
   digitalWrite(LED_BUILTIN, LOW);
   digitalWrite(pumpPin, HIGH);
   isActivated = true;
-  MQTTPublish(sensorTopic, buildResponse());
+}
+
+void turnOff() {
+  isActivated = false;
+  digitalWrite(pumpPin, LOW);
+  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 /**
@@ -267,9 +288,7 @@ void handleOnRequest()
  */
 void handleOffRequest()
 {
-  isActivated = false;
-  digitalWrite(pumpPin, LOW);
-  digitalWrite(LED_BUILTIN, HIGH);
+  turnOff();
   MQTTPublish(sensorTopic, buildResponse());
 }
 
@@ -296,9 +315,9 @@ String buildResponse()
 }
 
 /**
- * @brief build specific payload 
- * 
- * @return String 
+ * @brief build specific payload
+ *
+ * @return String
  */
 String buildPayload()
 {
@@ -341,13 +360,12 @@ void turnOffBuiltInLED()
   digitalWrite(LED_BUILTIN, HIGH);
 }
 
-void checkResetButton()
+void performReset()
 {
-  delay(3000); // delay applied for deboucing and to force long press for reset
-  bool isStillPressed = !digitalRead(resetButton);
-  if (shouldResetEsp && isStillPressed)
+  if (shouldResetEsp)
   {
     blink();
+    shouldResetEsp = false;
     Serial.println("Terminating processes and resetting...");
     wifi.resetSettings();
     clearFilesystem();
@@ -356,10 +374,38 @@ void checkResetButton()
   }
 }
 
-void IRAM_ATTR resetCallback()
+void checkResetButtonPress()
 {
-  Serial.println("Reset activated!");
-  shouldResetEsp = true;
+  if (!digitalRead(resetButton))
+  {
+    Serial.print('.');
+    resetHoldingTime++;
+    shouldResetEsp = false;
+  }
+  else
+  {
+    if (resetHoldingTime > 5)
+    {
+      resetHoldingTime = 0;
+      shouldResetEsp = true;
+    }
+  }
+}
+
+void checkManualPumpPressed() {
+  if (currentMode == MANUAL) {
+    pumpButtonPressed = !digitalRead(manualPump);
+  while (pumpButtonPressed) {
+      turnOn();
+      pumpButtonPressed = !digitalRead(manualPump);
+  }
+  turnOff();
+  }
+  else {
+    if (!digitalRead(manualPump)){ 
+      resetHoldingTime = 0;
+      currentMode = MANUAL;}
+  }
 }
 
 void setup()
@@ -371,8 +417,8 @@ void setup()
   MQTTBegin();
   MQTTSetCallback(mqttCallback);
   pinMode(pumpPin, OUTPUT);
-  pinMode(resetButton, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(resetButton), resetCallback, FALLING);
+  pinMode(manualPump, INPUT);
+  pinMode(resetButton, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   turnOffBuiltInLED();
 }
@@ -381,7 +427,9 @@ void loop()
 {
   // put your main code here, to run repeatedly:
   clockClient.update();
-  checkResetButton();
+  checkResetButtonPress();
+  performReset();
+  checkManualPumpPressed();
   checkPayload();
   MQTTLoop();
   MQTTSubscribe(sensorTopic);
