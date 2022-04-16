@@ -461,14 +461,18 @@ void checkResetButton()
 
 void resetFlagSetting()
 {
-  if (digitalRead(resetButton) == HIGH) {
+  if (digitalRead(resetButton) == HIGH)
+  {
     resetHoldingTime++;
     shouldResetEsp = false;
-    if (resetHoldingTime > 100) {
+    if (resetHoldingTime > 100)
+    {
       resetHoldingTime = 0;
       shouldResetEsp = true;
     }
-  } else {
+  }
+  else
+  {
     resetHoldingTime = 0;
   }
 }
