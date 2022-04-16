@@ -32,7 +32,7 @@ void saveConfigCallback();
 void tryOpenConfigFile();
 void saveNewConfig(const char *);
 void checkResetButton();
-void IRAM_ATTR resetFlagSetting();
+void resetFlagSetting();
 void clearFilesystem();
 void handleOnRequest();
 void handleOffRequest();
