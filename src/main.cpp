@@ -31,8 +31,8 @@ void turnOffBuiltInLED();
 void saveConfigCallback();
 void tryOpenConfigFile();
 void saveNewConfig(const char *);
-void checkResetButton();
-void resetFlagSetting();
+void checkResetButtonPress();
+void performReset();
 void clearFilesystem();
 void handleOnRequest();
 void handleOffRequest();
@@ -75,7 +75,7 @@ String CHANNEL = "G";
 bool rUP = true; // know when to increment or decrement color value1
 bool gUP = true;
 bool bUP = true;
-int resetButton = D8;
+int resetButton = D7;
 String MODE = "manual";
 bool isActivated = true;
 bool shouldSaveConfig = false; // flag for saving data
@@ -477,6 +477,38 @@ void resetFlagSetting()
   }
 }
 
+void performReset()
+{
+  if (shouldResetEsp)
+  {
+    blink();
+    shouldResetEsp = false;
+    Serial.println("Terminating processes and resetting...");
+    wifi.resetSettings();
+    clearFilesystem();
+    delay(500);
+    setupWifi();
+  }
+}
+
+void checkResetButtonPress()
+{
+  if (!digitalRead(resetButton))
+  {
+    Serial.print('.');
+    resetHoldingTime++;
+    shouldResetEsp = false;
+  }
+  else
+  {
+    if (resetHoldingTime > 5)
+    {
+      resetHoldingTime = 0;
+      shouldResetEsp = true;
+    }
+  }
+}
+
 void setup()
 {
   // put your setup code here, to run once:
@@ -493,9 +525,9 @@ void setup()
 void loop()
 {
   // put your main code here, to run repeatedly:
-  // clockClient.update();
-  resetFlagSetting();
-  checkResetButton();
+  clockClient.update();
+  checkResetButtonPress();
+  performReset();
   checkPayload();
   changeColor();
   fadeColorMode();
