@@ -20,8 +20,8 @@ const String ACTIVATED = "ACTIVATED";
 const String REPORT = "REPORT";
 const String INTERVAL = "INTERVAL";
 const String TOTEM_TYPE = "WATER_PUMP";
-const String MANUAL = "MANUAL";  // operation modes
-const String REMOTE = "REMOTE";  // operation modes
+const String MANUAL = "MANUAL"; // operation modes
+const String REMOTE = "REMOTE"; // operation modes
 const long utcOffset = -10800;
 
 //########################################################## FUNCTION DECLARATIONS #############################################################
@@ -65,7 +65,8 @@ WiFiUDP clockServer;
 NTPClient clockClient(clockServer, "south-america.pool.ntp.org", utcOffset);
 int resetHoldingTime = 0;
 bool pumpButtonPressed = false;
-String currentMode= MANUAL;
+String currentMode = MANUAL;
+bool currentState = false;
 
 //########################################################## CODE ###################################################
 
@@ -210,9 +211,10 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     char payloadStr[length + 1];
     memset(payloadStr, 0, length + 1);
     strncpy(payloadStr, (char *)payload, length);
+    currentMode = REMOTE;
+    Serial.println("current mode = REMOTE");
     newPayload = payloadStr;
     newPayloadReceived = true;
-    currentMode = REMOTE;
   }
 }
 
@@ -233,7 +235,7 @@ void saveConfigCallback()
  */
 void checkPayload()
 {
-  if (newPayload != "" && newPayloadReceived)
+  if (newPayload != "" && newPayloadReceived && currentMode == REMOTE)
   {
     resetHoldingTime = 0;
     if (newPayload.equals(ON))
@@ -260,7 +262,6 @@ void checkPayload()
 void handleIntervalRequest()
 {
   runIntervalMode();
-  isActivated = true;
   MQTTPublish(sensorTopic, buildResponse());
 }
 
@@ -270,16 +271,26 @@ void handleOnRequest()
   MQTTPublish(sensorTopic, buildResponse());
 }
 
-void turnOn() {
-  digitalWrite(LED_BUILTIN, LOW);
-  digitalWrite(pumpPin, HIGH);
-  isActivated = true;
+void turnOn()
+{
+  if (!isActivated)
+  {
+    Serial.println("turn on");
+    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(pumpPin, HIGH);
+    isActivated = true;
+  }
 }
 
-void turnOff() {
-  isActivated = false;
-  digitalWrite(pumpPin, LOW);
-  digitalWrite(LED_BUILTIN, HIGH);
+void turnOff()
+{
+  if (isActivated)
+  {
+    Serial.println("turn off");
+    isActivated = false;
+    digitalWrite(pumpPin, LOW);
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
 }
 
 /**
@@ -392,19 +403,24 @@ void checkResetButtonPress()
   }
 }
 
-void checkManualPumpPressed() {
-  if (currentMode == MANUAL) {
+void checkManualPumpPressed()
+{
+  if (currentMode == MANUAL)
+  {
     pumpButtonPressed = !digitalRead(manualPump);
-  while (pumpButtonPressed) {
+    if (pumpButtonPressed)
       turnOn();
-      pumpButtonPressed = !digitalRead(manualPump);
+    else
+      turnOff();
   }
-  turnOff();
-  }
-  else {
-    if (!digitalRead(manualPump)){ 
+  else
+  {
+    if (!digitalRead(manualPump))
+    {
       resetHoldingTime = 0;
-      currentMode = MANUAL;}
+      currentMode = MANUAL;
+      Serial.println("current mode = MANUAL");
+    }
   }
 }
 
