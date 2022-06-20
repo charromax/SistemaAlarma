@@ -34,6 +34,7 @@ void saveNewConfig(const char *);
 void checkResetButtonPress();
 void performReset();
 void clearFilesystem();
+<<<<<<< HEAD
 void handleOnRequest();
 void handleOffRequest();
 void sendReport();
@@ -47,6 +48,10 @@ void redFade();
 void greenFade();
 void blueFade();
 void rangeColorMode();
+=======
+String buildResponse();
+String buildPayload();
+>>>>>>> 06b82d9 (ADD: json response and payload)
 
 //########################################################## GLOBALS ###############################################
 
@@ -245,6 +250,31 @@ void saveConfigCallback()
 {
   Serial.println("Should save config");
   shouldSaveConfig = true;
+}
+
+String buildResponse()
+{
+  StaticJsonDocument<128> doc;
+  String output;
+  doc["type"] = "MAG_SENSOR";
+  doc["is_active"] = true;
+  doc["is_power_on"] = true;
+  doc["payload"] = buildPayload();
+  serializeJson(doc, output);
+  Serial.println("RESPONSE: " + output);
+  return output;
+}
+
+String buildPayload()
+{
+  StaticJsonDocument<16> doc;
+  String payload;
+  bool data;
+  if(currentState == ALARM) data = true; else data = false;
+  doc["data"] = data;
+  serializeJson(doc, payload);
+  Serial.println("PAYLOAD: " + payload);
+  return payload;
 }
 
 /**
@@ -447,7 +477,13 @@ void turnOffBuiltInLED()
 
 void checkResetButton()
 {
+<<<<<<< HEAD
   if (shouldResetEsp)
+=======
+  delay(3000); // delay applied for deboucing and to force long press for reset
+  bool isStillPressed = !digitalRead(resetButton);
+  if (shouldResetEsp && isStillPressed)
+>>>>>>> 06b82d9 (ADD: json response and payload)
   {
     blink();
     shouldResetEsp = false;
