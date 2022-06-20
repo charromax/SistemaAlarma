@@ -34,7 +34,6 @@ void saveNewConfig(const char *);
 void checkResetButtonPress();
 void performReset();
 void clearFilesystem();
-<<<<<<< HEAD
 void handleOnRequest();
 void handleOffRequest();
 void sendReport();
@@ -48,10 +47,6 @@ void redFade();
 void greenFade();
 void blueFade();
 void rangeColorMode();
-=======
-String buildResponse();
-String buildPayload();
->>>>>>> 06b82d9 (ADD: json response and payload)
 
 //########################################################## GLOBALS ###############################################
 
@@ -477,13 +472,7 @@ void turnOffBuiltInLED()
 
 void checkResetButton()
 {
-<<<<<<< HEAD
   if (shouldResetEsp)
-=======
-  delay(3000); // delay applied for deboucing and to force long press for reset
-  bool isStillPressed = !digitalRead(resetButton);
-  if (shouldResetEsp && isStillPressed)
->>>>>>> 06b82d9 (ADD: json response and payload)
   {
     blink();
     shouldResetEsp = false;
