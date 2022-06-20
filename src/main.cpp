@@ -40,6 +40,7 @@ void sendReport();
 void runIntervalMode();
 String buildResponse();
 String buildPayload();
+void clearPayloadFlags();
 void setupLedStripControl();
 void changeColor();
 void fadeColorMode();
@@ -247,31 +248,6 @@ void saveConfigCallback()
   shouldSaveConfig = true;
 }
 
-String buildResponse()
-{
-  StaticJsonDocument<128> doc;
-  String output;
-  doc["type"] = "MAG_SENSOR";
-  doc["is_active"] = true;
-  doc["is_power_on"] = true;
-  doc["payload"] = buildPayload();
-  serializeJson(doc, output);
-  Serial.println("RESPONSE: " + output);
-  return output;
-}
-
-String buildPayload()
-{
-  StaticJsonDocument<16> doc;
-  String payload;
-  bool data;
-  if(currentState == ALARM) data = true; else data = false;
-  doc["data"] = data;
-  serializeJson(doc, payload);
-  Serial.println("PAYLOAD: " + payload);
-  return payload;
-}
-
 /**
  * @brief decode MQTT payload and de/activate sensor accordingly
  *
@@ -296,9 +272,15 @@ void checkPayload()
     green = doc["green"]; // RGB values
     blue = doc["blue"];
     shouldChangeColor = true;
-    newPayload = "";
+    clearPayloadFlags();
     Serial.println("MQTT payload decoded");
   }
+}
+
+void clearPayloadFlags()
+{
+  newPayload = "";
+  newPayloadReceived = false;
 }
 
 /**
