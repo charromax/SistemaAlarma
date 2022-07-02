@@ -387,7 +387,7 @@ void performReset()
 
 void checkResetButtonPress()
 {
-  if (!digitalRead(resetButton))
+  if (digitalRead(resetButton))
   {
     Serial.print('.');
     resetHoldingTime++;
@@ -395,7 +395,7 @@ void checkResetButtonPress()
   }
   else
   {
-    if (resetHoldingTime > 5)
+    if (resetHoldingTime > 100)
     {
       resetHoldingTime = 0;
       shouldResetEsp = true;
@@ -407,15 +407,14 @@ void checkManualPumpPressed()
 {
   if (currentMode == MANUAL)
   {
-    pumpButtonPressed = !digitalRead(manualPump);
-    if (pumpButtonPressed)
+    if (digitalRead(manualPump))
       turnOn();
     else
       turnOff();
   }
   else
   {
-    if (!digitalRead(manualPump))
+    if (digitalRead(manualPump))
     {
       resetHoldingTime = 0;
       currentMode = MANUAL;
