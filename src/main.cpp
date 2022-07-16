@@ -408,7 +408,10 @@ void checkManualPumpPressed()
   if (currentMode == MANUAL)
   {
     if (digitalRead(manualPump))
+    {
+      Serial.println("Manual Pumping...");
       turnOn();
+    }
     else
       turnOff();
   }
@@ -416,8 +419,8 @@ void checkManualPumpPressed()
   {
     if (digitalRead(manualPump))
     {
-      resetHoldingTime = 0;
       currentMode = MANUAL;
+      resetHoldingTime = 0;
       Serial.println("current mode = MANUAL");
     }
   }
