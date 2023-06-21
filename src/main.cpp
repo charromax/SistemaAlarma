@@ -24,11 +24,12 @@ void saveConfigCallback();
 void tryOpenConfigFile();
 void saveNewConfig(const char *);
 void checkResetButton();
-void setDeviceState(int, bool);
+void setDeviceState(int);
 void IRAM_ATTR resetCallback();
 void clearFilesystem();
 String buildResponse();
 String buildPayload();
+void publishDeviceState();
 
 // ########################################################## GLOBALS ###############################################
 
@@ -228,7 +229,7 @@ void checkPayload()
   if (currentPayload != nullptr && currentPayload != "")
   {
     // Stream& input;
-
+    Serial.println("PAYLOAD: " + currentPayload);
     StaticJsonDocument<96> doc;
 
     DeserializationError error = deserializeJson(doc, currentPayload);
@@ -237,78 +238,110 @@ void checkPayload()
     {
       Serial.print(F("deserializeJson() failed: "));
       Serial.println(error.f_str());
+      currentPayload = "";
       return;
     }
     int outletNumber = doc["outletNumber"]; // 1
-    bool newState = doc["outletState"];     // true
-    setDeviceState(outletNumber, newState);
+    setDeviceState(outletNumber);
     currentPayload = "";
   }
 }
 
-void setDeviceState(int outletNumber, bool newState)
+void setDeviceState(int outletNumber)
 {
   switch (outletNumber)
   {
   case 1:
-    if (outlet1State && !newState)
+    if (outlet1State)
     {
       // turn off dev 1
-      digitalWrite(outlet1, LOW);
+      digitalWrite(outlet1, HIGH);
       outlet1State = false;
     }
-    else if (!outlet1State && newState)
+    else
     {
       // turno on dev 1
-      digitalWrite(outlet1, HIGH);
+      digitalWrite(outlet1, LOW);
       outlet1State = true;
     }
     break;
   case 2:
-    if (outlet2State && !newState)
+    if (outlet2State)
     {
       // turn off dev 2
-      digitalWrite(outlet2, LOW);
+      digitalWrite(outlet2, HIGH);
       outlet2State = false;
     }
-    else if (!outlet1State && newState)
+    else
     {
       // turno on dev 2
-      digitalWrite(outlet2, HIGH);
+      digitalWrite(outlet2, LOW);
       outlet2State = true;
     }
     break;
   case 3:
-    if (outlet3State && !newState)
+    if (outlet3State)
     {
       // turn off dev 3
-      digitalWrite(outlet3, LOW);
+      digitalWrite(outlet3, HIGH);
       outlet3State = false;
     }
-    else if (!outlet3State && newState)
+    else
     {
       // turno on dev 3
-      digitalWrite(outlet3, HIGH);
+      digitalWrite(outlet3, LOW);
       outlet3State = true;
     }
     break;
   case 4:
-    if (outlet4State && !newState)
+    if (outlet4State)
     {
       // turn off dev 4
-      digitalWrite(outlet4, LOW);
+      digitalWrite(outlet4, HIGH);
       outlet4State = false;
     }
-    else if (!outlet1State && newState)
+    else
     {
       // turno on dev 4
-      digitalWrite(outlet4, HIGH);
+      digitalWrite(outlet4, LOW);
       outlet4State = true;
     }
     break;
 
   default:
     break;
+  }
+  publishDeviceState();
+}
+
+void publishDeviceState()
+{
+  String output;
+  StaticJsonDocument<256> doc;
+  String outlet = "outletNumber";
+  String state = "outletState";
+  JsonArray devices = doc.createNestedArray("devices");
+
+  JsonObject devices_0 = devices.createNestedObject();
+  devices_0[outlet] = 1;
+  devices_0[state] = outlet1State;
+
+  JsonObject devices_1 = devices.createNestedObject();
+  devices_1[outlet] = 2;
+  devices_1[state] = outlet2State;
+
+  JsonObject devices_2 = devices.createNestedObject();
+  devices_2[outlet] = 3;
+  devices_2[state] = outlet3State;
+
+  JsonObject devices_3 = devices.createNestedObject();
+  devices_3[outlet] = 4;
+  devices_3[state] = outlet4State;
+
+  serializeJson(doc, output);
+  if (output != nullptr)
+  {
+    MQTTPublish(sensorTopic, output);
   }
 }
 
@@ -373,6 +406,10 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
   attachInterrupt(digitalPinToInterrupt(resetButton), resetCallback, FALLING);
 
+  digitalWrite(outlet1, HIGH);
+  digitalWrite(outlet2, HIGH);
+  digitalWrite(outlet3, HIGH);
+  digitalWrite(outlet4, HIGH);
   turnOffBuiltInLED();
 }
 
