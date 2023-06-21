@@ -6,48 +6,50 @@
 #include <ArduinoJson.h>
 #include "LittleFS.h"
 
-//########################################################## CONSTANTS ###########################################
+// ########################################################## CONSTANTS ###########################################
 
 char AP_SSID[] = "HerculesTotemAP";
 const char null[5] = "null";
 char CONFIG_FILE[] = "/config.json";
-String ALL_OK = "ALL_OK";
-String ON = "ON";
-String OFF = "OFF";
-String ALARM = "ALARM";
-String DEACTIVATED = "DEACTIVATED";
 
-//########################################################## FUNCTION DECLARATIONS ##############################
+// ########################################################## FUNCTION DECLARATIONS ##############################
 
 void setupWifi();
 void mqttCallback(char *, byte *, unsigned int);
-void getSensorValue();
 void blink();
-void checkPayload(String);
+void checkPayload();
 void turnOnBuiltInLED();
 void turnOffBuiltInLED();
 void saveConfigCallback();
 void tryOpenConfigFile();
 void saveNewConfig(const char *);
 void checkResetButton();
+void setDeviceState(int, bool);
 void IRAM_ATTR resetCallback();
 void clearFilesystem();
 String buildResponse();
 String buildPayload();
 
-//########################################################## GLOBALS ###############################################
+// ########################################################## GLOBALS ###############################################
 
 char sensorTopic[100];
-int sensor = D0; // magnetic or otherwise triggereable sensor
+bool outlet1State = false;
+bool outlet2State = false;
+bool outlet3State = false;
+bool outlet4State = false;
+int outlet1 = D5;
+int outlet2 = D6;
+int outlet3 = D7;
+int outlet4 = D8;
 int resetButton = D1;
 bool isActivated = true;
-String currentState = ALL_OK;
 SimpleTimer timer;
 bool shouldSaveConfig = false; // flag for saving data
 WiFiManager wifi;
 bool shouldResetEsp = false;
+String currentPayload = "";
 
-//########################################################## CODE ###################################################
+// ########################################################## CODE ###################################################
 
 void tryOpenConfigFile()
 {
@@ -178,41 +180,6 @@ void setupWifi()
 }
 
 /**
- * @brief Get the Sensor Value from connected sensor
- * and publish to MQTT broker
- */
-void getSensorValue()
-{
-  if (isActivated)
-  {
-    digitalWrite(LED_BUILTIN, LOW);
-    if (digitalRead(sensor) == HIGH && !currentState.equals(ALL_OK))
-
-    {
-      // door is closed ALL GOOD
-      currentState = ALL_OK;
-      MQTTPublish(sensorTopic, ALL_OK);
-    }
-    if (digitalRead(sensor) == LOW && !currentState.equals(ALARM))
-    {
-      blink();
-      // door is open ALARM ALARM
-      currentState = ALARM;
-      MQTTPublish(sensorTopic, ALARM);
-    }
-  }
-  else
-  {
-    if (!currentState.equals(DEACTIVATED))
-    {
-      MQTTPublish(sensorTopic, DEACTIVATED);
-      currentState = DEACTIVATED;
-    }
-  }
-  ESP.deepSleep(1e6);
-}
-
-/**
  * @brief mqtt messages are received here
  *
  * @param topic
@@ -226,7 +193,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     char payloadStr[length + 1];
     memset(payloadStr, 0, length + 1);
     strncpy(payloadStr, (char *)payload, length);
-    checkPayload(payloadStr);
+    currentPayload = payloadStr;
   }
 }
 
@@ -240,26 +207,12 @@ void saveConfigCallback()
   shouldSaveConfig = true;
 }
 
-String buildResponse()
-{
-  StaticJsonDocument<128> doc;
-  String output;
-  doc["type"] = "MAG_SENSOR";
-  doc["is_active"] = true;
-  doc["is_power_on"] = true;
-  doc["payload"] = buildPayload();
-  serializeJson(doc, output);
-  Serial.println("RESPONSE: " + output);
-  return output;
-}
-
 String buildPayload()
 {
-  StaticJsonDocument<16> doc;
   String payload;
-  bool data;
-  if(currentState == ALARM) data = true; else data = false;
-  doc["data"] = data;
+  StaticJsonDocument<32> doc;
+  doc["outletNumber"] = 1;
+  doc["outletState"] = true;
   serializeJson(doc, payload);
   Serial.println("PAYLOAD: " + payload);
   return payload;
@@ -270,20 +223,92 @@ String buildPayload()
  *
  * @param payload
  */
-void checkPayload(String payload)
+void checkPayload()
 {
-  if (payload != nullptr && payload != "")
+  if (currentPayload != nullptr && currentPayload != "")
   {
-    if (payload.equals(ON))
+    // Stream& input;
+
+    StaticJsonDocument<96> doc;
+
+    DeserializationError error = deserializeJson(doc, currentPayload);
+
+    if (error)
     {
-      digitalWrite(LED_BUILTIN, LOW);
-      isActivated = true;
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.f_str());
+      return;
     }
-    else if (payload.equals(OFF))
+    int outletNumber = doc["outletNumber"]; // 1
+    bool newState = doc["outletState"];     // true
+    setDeviceState(outletNumber, newState);
+    currentPayload = "";
+  }
+}
+
+void setDeviceState(int outletNumber, bool newState)
+{
+  switch (outletNumber)
+  {
+  case 1:
+    if (outlet1State && !newState)
     {
-      isActivated = false;
-      digitalWrite(LED_BUILTIN, HIGH);
+      // turn off dev 1
+      digitalWrite(outlet1, LOW);
+      outlet1State = false;
     }
+    else if (!outlet1State && newState)
+    {
+      // turno on dev 1
+      digitalWrite(outlet1, HIGH);
+      outlet1State = true;
+    }
+    break;
+  case 2:
+    if (outlet2State && !newState)
+    {
+      // turn off dev 2
+      digitalWrite(outlet2, LOW);
+      outlet2State = false;
+    }
+    else if (!outlet1State && newState)
+    {
+      // turno on dev 2
+      digitalWrite(outlet2, HIGH);
+      outlet2State = true;
+    }
+    break;
+  case 3:
+    if (outlet3State && !newState)
+    {
+      // turn off dev 3
+      digitalWrite(outlet3, LOW);
+      outlet3State = false;
+    }
+    else if (!outlet3State && newState)
+    {
+      // turno on dev 3
+      digitalWrite(outlet3, HIGH);
+      outlet3State = true;
+    }
+    break;
+  case 4:
+    if (outlet4State && !newState)
+    {
+      // turn off dev 4
+      digitalWrite(outlet4, LOW);
+      outlet4State = false;
+    }
+    else if (!outlet1State && newState)
+    {
+      // turno on dev 4
+      digitalWrite(outlet4, HIGH);
+      outlet4State = true;
+    }
+    break;
+
+  default:
+    break;
   }
 }
 
@@ -333,23 +358,29 @@ void setup()
 {
   // put your setup code here, to run once:
   Serial.begin(9600);
+
+  // network setup
   setupWifi();
-  // using mac address as device ID for topic
   MQTTBegin();
   MQTTSetCallback(mqttCallback);
-  pinMode(sensor, INPUT);
+
+  // hardware setup
+  pinMode(outlet1, OUTPUT);
+  pinMode(outlet2, OUTPUT);
+  pinMode(outlet3, OUTPUT);
+  pinMode(outlet4, OUTPUT);
   pinMode(resetButton, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(resetButton), resetCallback, FALLING);
   pinMode(LED_BUILTIN, OUTPUT);
-  timer.setInterval(1000L, getSensorValue);
+  attachInterrupt(digitalPinToInterrupt(resetButton), resetCallback, FALLING);
+
   turnOffBuiltInLED();
 }
 
 void loop()
 {
   // put your main code here, to run repeatedly:
-  timer.run();
   checkResetButton();
   MQTTLoop();
   MQTTSubscribe(sensorTopic);
+  checkPayload();
 }
