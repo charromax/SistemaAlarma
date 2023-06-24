@@ -242,7 +242,11 @@ void checkPayload()
       return;
     }
     int outletNumber = doc["outletNumber"]; // 1
-    setDeviceState(outletNumber);
+    bool refresh = doc["refresh"];
+    if (refresh)
+      publishDeviceState();
+    else
+      setDeviceState(outletNumber);
     currentPayload = "";
   }
 }
@@ -416,8 +420,9 @@ void setup()
 void loop()
 {
   // put your main code here, to run repeatedly:
+  if (currentPayload != "")
+    checkPayload();
   checkResetButton();
   MQTTLoop();
   MQTTSubscribe(sensorTopic);
-  checkPayload();
 }
