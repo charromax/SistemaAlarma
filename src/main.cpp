@@ -27,8 +27,6 @@ void checkResetButton();
 void setDeviceState(int);
 void IRAM_ATTR resetCallback();
 void clearFilesystem();
-String buildResponse();
-String buildPayload();
 void publishDeviceState();
 
 // ########################################################## GLOBALS ###############################################
@@ -191,6 +189,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
   if (length > 0)
   {
+    Serial.println("received message ");
     char payloadStr[length + 1];
     memset(payloadStr, 0, length + 1);
     strncpy(payloadStr, (char *)payload, length);
@@ -208,17 +207,6 @@ void saveConfigCallback()
   shouldSaveConfig = true;
 }
 
-String buildPayload()
-{
-  String payload;
-  StaticJsonDocument<32> doc;
-  doc["outletNumber"] = 1;
-  doc["outletState"] = true;
-  serializeJson(doc, payload);
-  Serial.println("PAYLOAD: " + payload);
-  return payload;
-}
-
 /**
  * @brief decode MQTT payload and de/activate sensor accordingly
  *
@@ -228,16 +216,13 @@ void checkPayload()
 {
   if (currentPayload != nullptr && currentPayload != "")
   {
-    // Stream& input;
-    Serial.println("PAYLOAD: " + currentPayload);
+    blink();
     StaticJsonDocument<96> doc;
 
     DeserializationError error = deserializeJson(doc, currentPayload);
 
     if (error)
     {
-      Serial.print(F("deserializeJson() failed: "));
-      Serial.println(error.f_str());
       currentPayload = "";
       return;
     }
@@ -320,7 +305,7 @@ void setDeviceState(int outletNumber)
 
 void publishDeviceState()
 {
-  String output;
+  String output = "";
   StaticJsonDocument<256> doc;
   String outlet = "outletNumber";
   String state = "outletState";
@@ -343,9 +328,11 @@ void publishDeviceState()
   devices_3[state] = outlet4State;
 
   serializeJson(doc, output);
-  if (output != nullptr)
+  if (output != "")
   {
     MQTTPublish(sensorTopic, output);
+    output = "";
+    blink();
   }
 }
 
@@ -355,9 +342,8 @@ void publishDeviceState()
 void blink()
 {
   turnOnBuiltInLED();
-  delay(300);
+  delay(200);
   turnOffBuiltInLED();
-  delay(300);
 }
 
 void turnOnBuiltInLED()
