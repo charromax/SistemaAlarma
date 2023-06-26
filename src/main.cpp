@@ -1,11 +1,15 @@
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <SimpleTimer.h>
-#include "./utils/MQTTConnector.h"
+#include "LittleFS.h"
+#include <DNSServer.h>
+#include <ESP8266WebServer.h>
+#include <PubSubClient.h>
 #include <WiFiManager.h>
 #include <ArduinoJson.h>
-#include "LittleFS.h"
 
+#define MQTT_BROKER "br5.maqiatto.com"
+#define MQTT_BROKER_PORT 1883
+#define MQTT_USERNAME "charr0max"
+#define MQTT_KEY "Mg412115"
 // ########################################################## CONSTANTS ###########################################
 
 char AP_SSID[] = "HerculesTotemAP";
@@ -15,6 +19,7 @@ char CONFIG_FILE[] = "/config.json";
 // ########################################################## FUNCTION DECLARATIONS ##############################
 
 void setupWifi();
+void reset();
 void mqttCallback(char *, byte *, unsigned int);
 void blink();
 void checkPayload();
@@ -28,6 +33,7 @@ void setDeviceState(int);
 void IRAM_ATTR resetCallback();
 void clearFilesystem();
 void publishDeviceState();
+void reconnect();
 
 // ########################################################## GLOBALS ###############################################
 
@@ -42,17 +48,17 @@ int outlet3 = D7;
 int outlet4 = D8;
 int resetButton = D1;
 bool isActivated = true;
-SimpleTimer timer;
 bool shouldSaveConfig = false; // flag for saving data
+WiFiClient espClient;
 WiFiManager wifi;
 bool shouldResetEsp = false;
 String currentPayload = "";
+PubSubClient client(espClient);
 
 // ########################################################## CODE ###################################################
 
 void tryOpenConfigFile()
 {
-
   // read configuration from FS json
   Serial.println("mounting FS...");
 
@@ -82,6 +88,7 @@ void tryOpenConfigFile()
         }
       }
     }
+    Serial.println("No file exists");
     LittleFS.end();
   }
   else
@@ -160,11 +167,11 @@ void setupWifi()
   // here  "AutoConnectAP"
   // and goes into a blocking loop awaiting configuration
   turnOnBuiltInLED();
-  wifi.autoConnect(AP_SSID, NULL);
+  wifi.autoConnect(AP_SSID);
   // if you get here you have connected to the WiFi
   Serial.println("Connected.");
   turnOffBuiltInLED();
-  if (customTopic.getValue() != sensorTopic)
+  if (customTopic.getValue() != nullptr && customTopic.getValueLength() > 0 && customTopic.getValue() != sensorTopic)
   {
     Serial.println("topic value");
     Serial.println(customTopic.getValue());
@@ -197,6 +204,35 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   }
 }
 
+void reconnect()
+{
+  // reconnect code from PubSubClient example
+  // Loop until we're reconnected
+  while (!client.connected())
+  {
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    String clientId = "sensor" + String(ESP.getChipId());
+    // Attempt to connect
+    if (client.connect(clientId.c_str(), MQTT_USERNAME, MQTT_KEY))
+    {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      publishDeviceState();
+      // ... and resubscribe
+      client.subscribe(sensorTopic);
+    }
+    else
+    {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
 /**
  * @brief callback to save config data
  * in filesystem
@@ -218,9 +254,7 @@ void checkPayload()
   {
     blink();
     StaticJsonDocument<96> doc;
-
     DeserializationError error = deserializeJson(doc, currentPayload);
-
     if (error)
     {
       currentPayload = "";
@@ -305,7 +339,7 @@ void setDeviceState(int outletNumber)
 
 void publishDeviceState()
 {
-  String output = "";
+  String output;
   StaticJsonDocument<256> doc;
   String outlet = "outletNumber";
   String state = "outletState";
@@ -328,9 +362,9 @@ void publishDeviceState()
   devices_3[state] = outlet4State;
 
   serializeJson(doc, output);
-  if (output != "")
+  if (!output.isEmpty())
   {
-    MQTTPublish(sensorTopic, output);
+    client.publish(sensorTopic, output.c_str());
     output = "";
     blink();
   }
@@ -362,13 +396,18 @@ void checkResetButton()
   bool isStillPressed = !digitalRead(resetButton);
   if (shouldResetEsp && isStillPressed)
   {
-    blink();
-    Serial.println("Terminating processes and resetting...");
-    wifi.resetSettings();
-    clearFilesystem();
-    delay(500);
-    setupWifi();
+    reset();
   }
+}
+
+void reset()
+{
+  blink();
+  Serial.println("Terminating processes and resetting...");
+  wifi.resetSettings();
+  clearFilesystem();
+  delay(500);
+  setupWifi();
 }
 
 void IRAM_ATTR resetCallback()
@@ -381,12 +420,10 @@ void setup()
 {
   // put your setup code here, to run once:
   Serial.begin(9600);
-
   // network setup
   setupWifi();
-  MQTTBegin();
-  MQTTSetCallback(mqttCallback);
-
+  client.setServer(MQTT_BROKER, MQTT_BROKER_PORT);
+  client.setCallback(mqttCallback);
   // hardware setup
   pinMode(outlet1, OUTPUT);
   pinMode(outlet2, OUTPUT);
@@ -401,14 +438,19 @@ void setup()
   digitalWrite(outlet3, HIGH);
   digitalWrite(outlet4, HIGH);
   turnOffBuiltInLED();
+  delay(2000);
 }
 
 void loop()
 {
   // put your main code here, to run repeatedly:
+
+  if (!client.connected())
+  {
+    reconnect();
+  }
+  client.loop();
   if (currentPayload != "")
     checkPayload();
   checkResetButton();
-  MQTTLoop();
-  MQTTSubscribe(sensorTopic);
 }
